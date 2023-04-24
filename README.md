@@ -14,6 +14,14 @@ Activate the environment
 conda activate 3dssl_env
 ```
 
+## Jupyter notebook
+
+In order to use the conda environment with a Jupyter notebook, install 
+
+```
+conda install ipykernel
+```
+
 ## nerfstudio
 
 To use the nerfstudio viewer, you need ssh with port forwarding (nerfstudio is using port 7007 by default):
