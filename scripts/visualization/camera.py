@@ -9,6 +9,16 @@ from dreifus.pyvista import add_floor, add_coordinate_axes, \
                             add_camera_frustum, add_coordinate_system, \
                             Pose, Intrinsics
 
+def read_transformation_npy(tPath: str, extrFName: str, intrFName: str):
+    extr = np.load('/'.join([tPath, extrFName]), allow_pickle=True)[()]
+    intr = np.load('/'.join([tPath, intrFName]), allow_pickle=True)[()]
+    extrinsics = []
+    intrinsics = []
+    for key in extr:
+        extrinsics.append(extr[key])
+        intrinsics.append(intr[key])
+    return (extrinsics, intrinsics)
+
 def read_transformation_sdfstudio(tPath: str, fName: str):
     """
     Read in transformation information from meta_data.json file used by sdfstudio.
@@ -168,12 +178,10 @@ if __name__ == '__main__':
     # VERY CONFUSING as camera model is specified as OPEN_CV
 
     # Extrinsics/Intrinsics in sdfstudio format when running own pipeline
-    extr, intr = read_transformation_sdfstudio('../data/head_01', 'meta_data_old.json')
+    extr, intr = read_transformation_npy('../data/head_38', 'extrinsics.npy', 'intrinsics.npy')
     
     for ext in extr:
-        ext[0,3] += 0.5
-        ext[1,3] += 0.5
-    
+        ext[2,3] += 0.1
 
     plot(extr, intr, 1.0, 5.0, CameraCoordinateConvention.OPEN_CV)
 
