@@ -1,0 +1,3 @@
+[submodule "sdfstudio"]
+	path = sdfstudio
+	url = https://github.com/autonomousvision/sdfstudio.git
