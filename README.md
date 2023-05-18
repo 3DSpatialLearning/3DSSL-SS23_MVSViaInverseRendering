@@ -1,7 +1,27 @@
 # 3DSSL-SS23_MVSViaInverseRendering
 
-## Setup
+This is our project for the practical course 3D Scanning & Spatial Learning.
 
+## Goal
+
+The goal, as formulated in the final project plan, is to extend sdfstudio to support relighting and separate
+material properties into different MLPs. For this, the !(https://github.com/autonomousvision/sdfstudio)[sdfstudio] project
+will be extended.
+
+## Structure
+
+```
+├── notebooks   - Contains experimental code to showcase idea
+├── scripts     - Every script external and not needed for extending sdfstudio
+└── sdfstudio   - Modified sdfstudio base to support our project
+```
+
+## Setup
+### Develop
+In case you cannot run python scripts because your conda environment does not find the `nerfstudio` module, add a file
+`conda.pth` to `~/miniconda3/envs/<ENV_NAME>/lib/pythonX.X/site-packages` with a path to the `sdfstudio` project.
+
+### Build
 Create a new conda environment using the `environment.yml` file:
 
 ```
