@@ -3,7 +3,6 @@ import numpy as np
 import pyvista as pv
 import numpy.linalg as linalg
 
-from scipy.spatial.transform import Rotation as R
 from dreifus.camera import CameraCoordinateConvention, PoseType
 from dreifus.pyvista import add_floor, add_coordinate_axes, \
                             add_camera_frustum, add_coordinate_system, \
