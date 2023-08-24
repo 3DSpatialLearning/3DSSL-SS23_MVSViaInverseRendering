@@ -19,7 +19,8 @@ will be extended.
 ├── notebooks                - Contains experimental code to showcase ideas/visualization on remote machine
 ├── scripts                  - Every script external and not needed for extending sdfstudio
 │       ├── preprocess              - Convert dataset to various formats (nerfstudio/sdfstudio/own) for training
-│       ├── training                - Training pipeline
+│       ├── mesh                    - Marching cubes + color implementation
+│       ├── metrics                 - Implementation of metrics for evaluation
 │       └── visualization           - Visualizing results from training (pyvista/dreifus)
 └── sdfstudio                - Modified sdfstudio base to support our project
 ```
