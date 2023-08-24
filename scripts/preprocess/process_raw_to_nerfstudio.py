@@ -6,6 +6,17 @@ import numpy as np
 import imageio as iio
 from PIL import Image
 
+# Matrix to convert extrinsic matrix from OpenCV convention to OpenGL convention
+# Use:
+#   extrinsics_in_GL_format = extrinsics_in_CV_format.dot(CVtoGL)
+CVtoGL = np.array([[1,0,0,0],[0,-1,0,0],[0,0,-1,0],[0,0,0,1]])
+
+# Matrix used to convert extrinsics matrix from OpenGL convention to OpenCV convention
+# Use:
+#   extrinsics_in_CV_format = extrinsics_in_GL_format.dot(GLtoCV)
+GLtoCV = np.array([[1,0,0,0],[0,-1,0,0],[0,0,-1,0],[0,0,0,1]])
+
+
 class NumpyEncoder(json.JSONEncoder):
     """
         Encoder class for converting numpy arrays into JSON format
@@ -43,7 +54,8 @@ def nerfstudio_to_masked(
         Transform a given dataset with extrinsics/intrinsics provided in transform.json into another representation,
         possibly with mask supervision.
 
-        Arguments:
+        Parameters
+        ----------
             rgb_path        - Path to RGB images.
             transform_path  - Path to transforms.json file that contains camera extrinsic/intrinsic parameters.
                               The filenames need to be the same as in rgb/mask path.
@@ -102,7 +114,7 @@ def nerfstudio_to_masked(
             print('INDEX: {}'.format(idx))
 
             IN_FILE = '/'.join([rgb_path, file])
-            OUT_FILE = '/'.join([OUT_IMG_PATH, file])
+            RGB_OUT_FILE = '/'.join([OUT_IMG_PATH, file])
             img = iio.v3.imread(IN_FILE)
 
             nWidth, nHeight = int(img.shape[1] / down_scale), int(img.shape[0] / down_scale)
@@ -110,13 +122,10 @@ def nerfstudio_to_masked(
             print('Width: {}, Height: {}'.format(nWidth, nHeight))
 
             assert nWidth == outJson['w'] and nHeight == outJson['h']
-            img = Image.fromarray(img).resize((nWidth, nHeight))
-            iio.v3.imwrite(OUT_FILE, img)
-
 
             # Add information for frame in new transforms metadata file
             frameInfo = dict()
-            frameInfo['file_path'] = OUT_FILE
+            frameInfo['file_path'] = RGB_OUT_FILE
 
             # ORDERING HERE IS VERY IMPORTANT
             frameInfo['transform_matrix'] = tJSON['frames'][idx]['transform_matrix']
@@ -125,22 +134,31 @@ def nerfstudio_to_masked(
             if use_masks:
                 IN_FILE = '/'.join([mask_path, file])
                 OUT_FILE = '/'.join([OUT_MASK_PATH, file])
-                img = iio.v3.imread(IN_FILE)
-                nWidth, nHeight = int(img.shape[1] / down_scale), int(img.shape[0] / down_scale)
+                maskImage = iio.v3.imread(IN_FILE)
+                nWidth, nHeight = int(maskImage.shape[1] / down_scale), int(maskImage.shape[0] / down_scale)
                 print('Processing mask: {}'.format(IN_FILE))
                 print('Width: {}, Height: {}'.format(nWidth, nHeight))
 
                 assert nWidth == outJson['w'] and nHeight == outJson['h']
-                img = Image.fromarray(img).resize((nWidth, nHeight))
-                blackWhite = img.convert('1')
+                maskImage = Image.fromarray(maskImage).resize((nWidth, nHeight))
+                blackWhite = maskImage.convert('1')
 
-                with open(OUT_FILE[:-4] + '.jpg', 'w') as maskImg:
-                    blackWhite.save(maskImg)
+                img[blackWhite == 0] = 255
+                img = Image.fromarray(img).resize((nWidth, nHeight))
+                iio.v3.imwrite(RGB_OUT_FILE, img)
+
+                with open(OUT_FILE[:-4] + '.jpg', 'w') as maskImgFile:
+                    blackWhite.save(maskImgFile)
 
                 frameInfo['mask_path'] = OUT_FILE[:-4] + '.jpg'
 
+            else:
+                img = Image.fromarray(img).resize((nWidth, nHeight))
+                iio.v3.imwrite(RGB_OUT_FILE, img)
+
             outJson['frames'].append(frameInfo)
             idx += 1
+
 
     # Write new transforms file
     with open('/'.join([out_path, 'transforms.json']), 'w') as tFile:
@@ -208,9 +226,6 @@ def own_to_masked(
         OUT_FILE = '/'.join([OUT_RGB, key + '.png'])
 
         img = iio.v3.imread(IN_FILE)
-        img = Image.fromarray(img).resize((nWidth, nHeight))
-        iio.v3.imwrite(OUT_FILE, img)
-
 
         frameInfo = dict()
         frameInfo['file_path'] = OUT_FILE
@@ -219,23 +234,37 @@ def own_to_masked(
 
         # Extrinsics is here in OPENCV format
         # Convert to OPENGL
-        print(mat)
-        mat[1,:] *= -1
-        mat[2,:] *= -1
-        print(mat)
+        extrinsics[key] = extrinsics[key].dot(CVtoGL)
 
         frameInfo['transform_matrix'] = np.array(extrinsics[key])
 
         # Process mask
         if useMask:
-            IN_FILE = '/'.join([maskPath, key + '.png'])
-            OUT_FILE = '/'.join([OUT_MASK, key + '.png'])
-            img = iio.v3.imread(IN_FILE)
+            IN_FILE_MASK = '/'.join([maskPath, key + '.png'])
+            OUT_FILE_MASK = '/'.join([OUT_MASK, key + '.png'])
+            maskImg = iio.v3.imread(IN_FILE_MASK)
+            idx = (maskImg < 255)
+
+            img = img.copy()
+            img[idx] = 255
             img = Image.fromarray(img).resize((nWidth, nHeight))
-            blackWhite = img.convert('1')
-            with open(OUT_FILE[:-4] + '.jpg', 'w') as maskImg:
-                blackWhite.save(maskImg)
-            frameInfo['mask_path'] = OUT_FILE[:-4] + '.jpg'
+            iio.v3.imwrite(OUT_FILE, img)
+
+            maskImg = maskImg.copy()
+            maskImg[maskImg < 255] = 0
+            maskImg[maskImg > 0] = 255
+            maskImg = Image.fromarray(maskImg).resize((nWidth, nHeight))
+            iio.v3.imwrite(OUT_FILE_MASK[:-4] + '.jpg', maskImg)
+
+            '''
+            with open(OUT_FILE_MASK[:-4] + '.jpg', 'w') as maskImgFile:
+                blackWhite.save(maskImgFile)
+            '''
+
+            frameInfo['mask_path'] = OUT_FILE_MASK[:-4] + '.jpg'
+        else:
+            img = Image.fromarray(img).resize((nWidth, nHeight))
+            iio.v3.imwrite(OUT_FILE, img)
 
         transforms['frames'].append(frameInfo)
 

@@ -72,11 +72,17 @@ def train_iteration(
         model,
         loss_fn,
         optimizer,
+        loss_dict=None,
         printOut=False
 ):
     """
         One training iteration
     """
+    r_sdf_loss = 0
+    r_norm_loss = 0
+    r_eik_loss = 0
+    r_t_loss = 0
+
     for batchIdx, (position, sdf_gt, normals_gt) in enumerate(dataset):
         position = position.to('cuda')
         sdf_gt = sdf_gt.to('cuda')
@@ -88,16 +94,23 @@ def train_iteration(
 
         # Output of field
         field_output = model.get_outputs_raw(position)
-        loss = loss_fn(field_output, sdf_gt, normals_gt)
+        loss, l1, eik, norm, run = loss_fn(field_output, sdf_gt, normals_gt)
+
+        r_sdf_loss += l1
+        r_eik_loss += eik
+        r_norm_loss += norm
+        r_t_loss += run
 
         # Backpropagation
         loss.backward()
         optimizer.step()
         optimizer.zero_grad()
 
-        if batchIdx == len(dataset)-1 and printOut:
-            print('Loss: {}'.format(loss.item()))
-
+    if printOut:
+        loss_dict['sdf'].append(100.0*r_sdf_loss/len(dataset))
+        loss_dict['eik'].append(r_eik_loss/len(dataset))
+        loss_dict['norm'].append(r_norm_loss/len(dataset))
+        print('L1: {}, Eik: {}, Norm: {}'.format(100.0*r_sdf_loss/len(dataset), r_eik_loss/len(dataset), r_norm_loss/len(dataset)))
 
 if __name__ == '__main__':
 
@@ -134,7 +147,7 @@ if __name__ == '__main__':
 
         # Use L1 norm between learned SDF and SDF gt
         sdf_pred = field_output[FieldHeadNames.SDF]
-        sdf_loss = F.l1_loss(sdf_pred, sdf_gt)
+        sdf_loss = F.mse_loss(sdf_pred, sdf_gt)
 
         # Use eikonal loss
         gradients = field_output[FieldHeadNames.GRADIENT]
@@ -145,22 +158,40 @@ if __name__ == '__main__':
         normals_pred = field_output[FieldHeadNames.NORMAL]
         normals_pred = F.normalize(normals_pred, p=2, dim=-1)
         normal_gt = F.normalize(normal_gt, p=2, dim=-1)
-        cos = (1.0 - torch.sum(normals_pred * normal_gt * normal_mask, dim=-1)).mean()
+        # cos = (1.0 - torch.sum(normals_pred * normal_gt * normal_mask, dim=-1)).mean()
+        l1_norm = torch.abs((normals_pred - normal_gt)*normal_mask).sum(dim=-1).mean()
 
+        loss = sdf_loss + 0.1 * eikonal_loss + 1.0 * l1_norm
 
-        return sdf_loss + 0.1 * eikonal_loss + 0.3 * cos
+        return loss, sdf_loss.item(), eikonal_loss.item(), l1_norm.item(), loss.item()
 
     # Train model
-    EPOCHS = 100
+    EPOCHS = 50
+    loss_dict = dict()
+    loss_dict['sdf'] = []
+    loss_dict['eik'] = []
+    loss_dict['norm'] = []
+    loss_dict['t_loss'] = []
     for ep in range(EPOCHS):
         train_iteration(
             ds,
             model,
             loss_fn = loss_function,
             optimizer = torch.optim.Adam(model.parameters(), lr=1E-4, betas=(0.9, 0.999)),
-            printOut = ep % 10 == 0)
+            loss_dict=loss_dict,
+            printOut = True)
 
-    MESH_PATH = '/mnt/hdd/extracted/sdf_pretrain/out_l1_eik_no_normal.ply'
+
+    import matplotlib.pyplot as plt
+
+    plt.plot(np.linspace(0, 1, EPOCHS), np.array(loss_dict['sdf']), label='L1')
+    plt.plot(np.linspace(0, 1, EPOCHS), np.array(loss_dict['eik']), label='Eikonal')
+    plt.plot(np.linspace(0, 1, EPOCHS), np.array(loss_dict['norm']), label='Normal')
+    plt.legend()
+    plt.title('Pretraining loss')
+    plt.savefig('out.png')
+
+    MESH_PATH = '/mnt/hdd/extracted/sdf_pretrain/out_pretrain_final.ply'
     MODEL_OUT_PATH = '/mnt/hdd/pretrained/sdf_field.tor'
 
     mPath = Path(MODEL_OUT_PATH)
@@ -170,7 +201,6 @@ if __name__ == '__main__':
     torch.save(model.state_dict(), str(mPath))
 
     # Extract mesh of SDF field
-    '''f
     extract_mesh(
         MESH_PATH,
         model,
@@ -178,4 +208,3 @@ if __name__ == '__main__':
         bounding_box_min=(-0.16, -0.313, -0.12),
         bounding_box_max=(0.16, 0.147, 0.12)
     )
-    '''

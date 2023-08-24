@@ -71,10 +71,11 @@ def mesh_distance_coloring(
     coloredMesh = trimesh.Trimesh(predVertices / 100.0, face1, vertex_colors=colors)
     coloredMesh.export(mOutPath)
 
-
 if __name__ == '__main__':
+    '''
     mesh_distance_coloring(
-        '/mnt/hdd/extracted/model_46.ply',
+        '/mnt/hdd/extracted/model_52.ply',
         '/mnt/hdd/data/mesh_85_f_150_prior.ply',
-        '/mnt/hdd/metrics/model_46_color_gt.ply'
+        '/mnt/hdd/metrics/model_52_color.ply'
     )
+    '''
