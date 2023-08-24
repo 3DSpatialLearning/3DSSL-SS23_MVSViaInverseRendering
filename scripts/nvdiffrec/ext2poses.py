@@ -1,3 +1,9 @@
+# This file converts the extrinsics file into poses bounds used in nvdiffrec
+# Some inputs are manual like focal length and files names
+# as for the furthest and shortest points there are two ways to caclculate it
+# one way to rip it from colmap file, the other is to caculate the max and min z values in the matrix
+# the commented lines represent the first one, and the active lines represent the second one.
+
 import numpy as np
 
 # set of variables
